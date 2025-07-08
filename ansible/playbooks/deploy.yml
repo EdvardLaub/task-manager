@@ -1,0 +1,178 @@
+---
+- name: Deploy Task Manager Application
+  hosts: webservers
+  become: yes
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/vault.yml
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required system packages
+      apt:
+        name:
+          - python3
+          - python3-pip
+          - python3-venv
+          - python3-dev
+          - git
+          - nginx
+          - supervisor
+          - postgresql
+          - postgresql-contrib
+          - libpq-dev
+          - curl
+          - wget
+          - build-essential
+        state: present
+
+    - name: Create application user
+      user:
+        name: "{{ app_user }}"
+        group: "{{ app_group }}"
+        shell: /bin/bash
+        home: "/home/{{ app_user }}"
+        create_home: yes
+
+    - name: Create application directory
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: '0755'
+
+    - name: Clone or update repository
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ app_dir }}"
+        version: "{{ repo_branch }}"
+        force: yes
+      become_user: "{{ app_user }}"
+
+    - name: Create virtual environment
+      command: python3 -m venv {{ venv_path }}
+      args:
+        creates: "{{ venv_path }}/bin/activate"
+      become_user: "{{ app_user }}"
+
+    - name: Install Python dependencies
+      pip:
+        requirements: "{{ app_dir }}/requirements.txt"
+        virtualenv: "{{ venv_path }}"
+      become_user: "{{ app_user }}"
+
+    - name: Create PostgreSQL database
+      postgresql_db:
+        name: "{{ db_name }}"
+        state: present
+      become_user: postgres
+
+    - name: Create PostgreSQL user
+      postgresql_user:
+        name: "{{ db_user }}"
+        password: "{{ vault_db_password }}"
+        priv: "{{ db_name }}:ALL"
+        state: present
+      become_user: postgres
+
+    - name: Create environment file
+      template:
+        src: ../templates/env.j2
+        dest: "{{ app_dir }}/.env"
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: '0600'
+
+    - name: Run Django migrations
+      command: "{{ venv_path }}/bin/python manage.py migrate --settings={{ django_settings_module }}"
+      args:
+        chdir: "{{ app_dir }}"
+      become_user: "{{ app_user }}"
+      environment:
+        DB_NAME: "{{ db_name }}"
+        DB_USER: "{{ db_user }}"
+        DB_PASSWORD: "{{ vault_db_password }}"
+        DJANGO_SECRET_KEY: "{{ vault_django_secret_key }}"
+
+    - name: Collect static files
+      command: "{{ venv_path }}/bin/python manage.py collectstatic --noinput --settings={{ django_settings_module }}"
+      args:
+        chdir: "{{ app_dir }}"
+      become_user: "{{ app_user }}"
+      environment:
+        DB_NAME: "{{ db_name }}"
+        DB_USER: "{{ db_user }}"
+        DB_PASSWORD: "{{ vault_db_password }}"
+        DJANGO_SECRET_KEY: "{{ vault_django_secret_key }}"
+
+    - name: Create Gunicorn configuration
+      template:
+        src: ../templates/gunicorn.conf.py.j2
+        dest: "{{ app_dir }}/gunicorn.conf.py"
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: '0644'
+
+    - name: Create Supervisor configuration
+      template:
+        src: ../templates/supervisor.conf.j2
+        dest: /etc/supervisor/conf.d/{{ app_name }}.conf
+        mode: '0644'
+      notify: restart supervisor
+
+    - name: Create Nginx configuration
+      template:
+        src: ../templates/nginx.conf.j2
+        dest: /etc/nginx/sites-available/{{ app_name }}
+        mode: '0644'
+      notify: restart nginx
+
+    - name: Enable Nginx site
+      file:
+        src: /etc/nginx/sites-available/{{ app_name }}
+        dest: /etc/nginx/sites-enabled/{{ app_name }}
+        state: link
+      notify: restart nginx
+
+    - name: Remove default Nginx site
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: restart nginx
+
+    - name: Start and enable services
+      systemd:
+        name: "{{ item }}"
+        state: started
+        enabled: yes
+      loop:
+        - postgresql
+        - supervisor
+        - nginx
+
+    - name: Update supervisor configuration
+      command: supervisorctl reread
+      
+    - name: Update supervisor programs
+      command: supervisorctl update
+
+    - name: Start application
+      supervisorctl:
+        name: "{{ app_name }}"
+        state: started
+
+  handlers:
+    - name: restart supervisor
+      systemd:
+        name: supervisor
+        state: restarted
+
+    - name: restart nginx
+      systemd:
+        name: nginx
+        state: restarted
