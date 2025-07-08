@@ -1,0 +1,4 @@
+cat > requirements.txt << 'EOF'
+Django>=4.2.0
+python-dateutil>=2.8.2
+EOF
