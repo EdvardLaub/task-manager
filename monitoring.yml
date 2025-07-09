@@ -1,0 +1,88 @@
+---
+- hosts: webservers
+  become: yes
+  tasks:
+    - name: Install monitoring tools
+      apt:
+        name:
+          - htop
+          - iotop
+          - nethogs
+          - fail2ban
+          - logwatch
+        state: present
+        update_cache: yes
+    
+    - name: Configure fail2ban for SSH
+      copy:
+        content: |
+          [sshd]
+          enabled = true
+          port = ssh
+          filter = sshd
+          logpath = /var/log/auth.log
+          maxretry = 3
+          bantime = 3600
+        dest: /etc/fail2ban/jail.local
+        backup: yes
+      notify: restart fail2ban
+    
+    - name: Start and enable fail2ban
+      systemd:
+        name: fail2ban
+        state: started
+        enabled: yes
+    
+    - name: Create backup script
+      copy:
+        content: |
+          #!/bin/bash
+          # Task Manager Backup Script
+          set -e
+          
+          BACKUP_DIR="/var/backups/task-manager"
+          DATE=$(date +"%Y-%m-%d_%H-%M-%S")
+          APP_DIR="{{ app_dir }}"
+          DB_NAME="{{ db_name }}"
+          LOG_FILE="/var/log/task-manager-backup.log"
+          
+          # Function to log messages
+          log_message() {
+              echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"
+          }
+          
+          log_message "Starting backup process"
+          
+          # Create backup directory
+          mkdir -p "$BACKUP_DIR"
+          
+          # Backup application files
+          log_message "Backing up application files"
+          tar -czf "$BACKUP_DIR/app_backup_$DATE.tar.gz" -C /var/www task-manager --exclude="task-manager/venv" --exclude="task-manager/.git"
+          
+          # Backup database
+          log_message "Backing up database"
+          sudo -u postgres pg_dump "$DB_NAME" > "$BACKUP_DIR/db_backup_$DATE.sql"
+          
+          # Clean up old backups (keep last 7 days)
+          find "$BACKUP_DIR" -name "app_backup_*" -mtime +7 -delete
+          find "$BACKUP_DIR" -name "db_backup_*" -mtime +7 -delete
+          
+          log_message "Backup process finished"
+          echo "Backup completed: $DATE"
+        dest: /usr/local/bin/backup_task_manager.sh
+        mode: '0755'
+    
+    - name: Create backup cron job
+      cron:
+        name: "Daily application backup"
+        minute: "0"
+        hour: "2"
+        job: "/usr/local/bin/backup_task_manager.sh"
+        user: root
+  
+  handlers:
+    - name: restart fail2ban
+      systemd:
+        name: fail2ban
+        state: restarted

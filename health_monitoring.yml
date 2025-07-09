@@ -1,0 +1,75 @@
+---
+- hosts: webservers
+  become: yes
+  gather_facts: yes
+  tasks:
+    - name: Check application HTTP response
+      uri:
+        url: "http://{{ ansible_host }}"
+        method: GET
+        status_code: 200
+        timeout: 10
+      register: app_health
+      ignore_errors: yes
+    
+    - name: Check nginx status
+      systemd:
+        name: nginx
+      register: nginx_status
+    
+    - name: Check supervisor status
+      command: supervisorctl status
+      register: supervisor_status
+      changed_when: false
+    
+    - name: Check PostgreSQL status
+      systemd:
+        name: postgresql
+      register: postgresql_status
+    
+    - name: Check disk usage
+      shell: df -h /var/www | tail -1
+      register: disk_usage
+      changed_when: false
+    
+    - name: Check memory usage
+      shell: free -h | grep Mem
+      register: memory_usage
+      changed_when: false
+    
+    - name: Check CPU load
+      shell: uptime | awk -F'load average:' '{print $2}'
+      register: cpu_load
+      changed_when: false
+    
+    - name: Check if application log exists
+      stat:
+        path: /var/log/supervisor/task-manager.log
+      register: log_file
+    
+    - name: Check application logs for errors
+      shell: tail -50 /var/log/supervisor/task-manager.log | grep -i error || echo "No errors found"
+      register: app_errors
+      changed_when: false
+      when: log_file.stat.exists
+    
+    - name: Display comprehensive health report
+      debug:
+        msg: |
+          =================================
+          APPLICATION HEALTH REPORT
+          =================================
+          Application Status: {{ 'UP' if app_health.status == 200 else 'DOWN' }}
+          
+          SERVICES:
+          - Nginx: {{ nginx_status.status.ActiveState }}
+          - PostgreSQL: {{ postgresql_status.status.ActiveState }}
+          - Supervisor: {{ 'Running' if 'RUNNING' in supervisor_status.stdout else 'Issues detected' }}
+          
+          SYSTEM RESOURCES:
+          - Disk: {{ disk_usage.stdout }}
+          - Memory: {{ memory_usage.stdout }}
+          - CPU Load: {{ cpu_load.stdout }}
+          
+          RECENT ERRORS:
+          {{ app_errors.stdout if log_file.stat.exists else 'Log file not found' }}
