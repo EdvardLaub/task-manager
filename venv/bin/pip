@@ -1,4 +1,4 @@
-#!/Users/edvard-work/Documents/Task_Manager/venv/bin/python3
+#!/Users/edvard-work/task-manager/venv/bin/python3
 # -*- coding: utf-8 -*-
 import re
 import sys
