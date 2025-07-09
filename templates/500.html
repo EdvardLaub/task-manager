@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}Server Error - Task Manager{% endblock %}
+
+{% block content %}
+<div class="text-center">
+    <h1>500 - Server Error</h1>
+    <p>Something went wrong on our end.</p>
+    <a href="{{ url_for('index') }}" class="btn btn-primary">Go Home</a>
+</div>
+{% endblock %}
