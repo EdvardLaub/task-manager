@@ -1,137 +1,179 @@
-cat > templates/dashboard.html << 'EOF'
 {% extends "base.html" %}
 
 {% block title %}Dashboard - Task Manager{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <h2><i class="fas fa-tachometer-alt"></i> Dashboard</h2>
-        <p class="text-muted">Welcome back, {{ session.username }}!</p>
+<div class="row mb-4">
+    <div class="col">
+        <h2 class="mb-3">
+            <i class="fas fa-tachometer-alt me-2 text-primary"></i>Dashboard
+        </h2>
+        <p class="text-muted">Welcome back, <strong>{{ session.username }}</strong>! Here's your productivity overview.</p>
     </div>
 </div>
 
-<div class="row mb-4">
+<!-- Statistics Cards -->
+<div class="row g-4 mb-5">
     <div class="col-md-4">
-        <div class="card bg-primary text-white">
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-8">
-                        <h3>{{ total_tasks }}</h3>
-                        <p>Total Tasks</p>
-                    </div>
-                    <div class="col-4 text-end">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body d-flex align-items-center">
+                <div class="flex-shrink-0">
+                    <div class="bg-primary text-white rounded-circle p-3">
                         <i class="fas fa-tasks fa-2x"></i>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card bg-success text-white">
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-8">
-                        <h3>{{ completed_tasks }}</h3>
-                        <p>Completed</p>
-                    </div>
-                    <div class="col-4 text-end">
-                        <i class="fas fa-check-circle fa-2x"></i>
-                    </div>
+                <div class="flex-grow-1 ms-3">
+                    <h3 class="mb-0">{{ total_tasks }}</h3>
+                    <p class="text-muted mb-0">Total Tasks</p>
                 </div>
             </div>
         </div>
     </div>
+    
     <div class="col-md-4">
-        <div class="card bg-warning text-white">
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-8">
-                        <h3>{{ pending_tasks }}</h3>
-                        <p>Pending</p>
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body d-flex align-items-center">
+                <div class="flex-shrink-0">
+                    <div class="bg-success text-white rounded-circle p-3">
+                        <i class="fas fa-check-circle fa-2x"></i>
                     </div>
-                    <div class="col-4 text-end">
+                </div>
+                <div class="flex-grow-1 ms-3">
+                    <h3 class="mb-0">{{ completed_tasks }}</h3>
+                    <p class="text-muted mb-0">Completed</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body d-flex align-items-center">
+                <div class="flex-shrink-0">
+                    <div class="bg-warning text-white rounded-circle p-3">
                         <i class="fas fa-clock fa-2x"></i>
                     </div>
+                </div>
+                <div class="flex-grow-1 ms-3">
+                    <h3 class="mb-0">{{ pending_tasks }}</h3>
+                    <p class="text-muted mb-0">Pending</p>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Progress Bar -->
+{% if total_tasks > 0 %}
+<div class="row mb-4">
+    <div class="col">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Progress Overview</h5>
+                <div class="progress" style="height: 20px;">
+                    <div class="progress-bar bg-success" role="progressbar" 
+                         style="width: {{ (completed_tasks / total_tasks * 100) | round(1) }}%">
+                        {{ (completed_tasks / total_tasks * 100) | round(1) }}% Complete
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Recent Tasks -->
 <div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Recent Tasks</h5>
+    <div class="col">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-clock me-2"></i>Recent Tasks
+                </h5>
                 <a href="{{ url_for('add_task') }}" class="btn btn-primary btn-sm">
-                    <i class="fas fa-plus"></i> Add Task
+                    <i class="fas fa-plus me-1"></i>Add Task
                 </a>
             </div>
             <div class="card-body">
                 {% if tasks %}
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Task</th>
-                                    <th>Priority</th>
-                                    <th>Status</th>
-                                    <th>Created</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for task in tasks[:5] %}
-                                <tr>
-                                    <td>
-                                        <strong>{{ task.title }}</strong>
-                                        {% if task.description %}
-                                            <br><small class="text-muted">{{ task.description[:50] }}...</small>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if task.priority == 'high' %}
-                                            <span class="badge bg-danger">High</span>
-                                        {% elif task.priority == 'medium' %}
-                                            <span class="badge bg-warning">Medium</span>
-                                        {% else %}
-                                            <span class="badge bg-info">Low</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if task.completed %}
-                                            <span class="badge bg-success">Completed</span>
-                                        {% else %}
-                                            <span class="badge bg-secondary">Pending</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ task.created_at.strftime('%Y-%m-%d') }}</td>
-                                    <td>
-                                        <button class="btn btn-sm btn-outline-primary toggle-task" data-task-id="{{ task.id }}">
-                                            <i class="fas fa-{{ 'undo' if task.completed else 'check' }}"></i>
-                                        </button>
-                                        <a href="{{ url_for('edit_task', task_id=task.id) }}" class="btn btn-sm btn-outline-secondary">
-                                            <i class="fas fa-edit"></i>
-                                        </a>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                    {% if tasks|length > 5 %}
-                        <div class="text-center">
-                            <a href="{{ url_for('tasks') }}" class="btn btn-outline-primary">View All Tasks</a>
+                    <div class="row g-3">
+                        {% for task in tasks %}
+                        <div class="col-md-6">
+                            <div class="card task-card border priority-{{ task.priority }} {{ 'completed-task' if task.completed }}">
+                                <div class="card-body p-3">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <h6 class="card-title mb-0 {{ 'text-decoration-line-through' if task.completed }}">
+                                            {{ task.title }}
+                                        </h6>
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                <i class="fas fa-ellipsis-v"></i>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li>
+                                                    <button class="dropdown-item toggle-task" data-task-id="{{ task.id }}">
+                                                        <i class="fas fa-{{ 'undo' if task.completed else 'check' }} me-1"></i>
+                                                        {{ 'Mark Pending' if task.completed else 'Mark Complete' }}
+                                                    </button>
+                                                </li>
+                                                <li>
+                                                    <a class="dropdown-item" href="{{ url_for('edit_task', task_id=task.id) }}">
+                                                        <i class="fas fa-edit me-1"></i>Edit
+                                                    </a>
+                                                </li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li>
+                                                    <form method="POST" action="{{ url_for('delete_task', task_id=task.id) }}" class="d-inline" onsubmit="return confirm('Are you sure?')">
+                                                        <button type="submit" class="dropdown-item text-danger">
+                                                            <i class="fas fa-trash me-1"></i>Delete
+                                                        </button>
+                                                    </form>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    
+                                    {% if task.description %}
+                                    <p class="card-text text-muted small mb-2">
+                                        {{ task.description[:80] }}{{ '...' if task.description|length > 80 }}
+                                    </p>
+                                    {% endif %}
+                                    
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <span class="badge bg-{{ 'danger' if task.priority == 'high' else 'warning' if task.priority == 'medium' else 'info' }}">
+                                                {{ task.priority.title() }}
+                                            </span>
+                                            {% if task.completed %}
+                                            <span class="badge bg-success ms-1">
+                                                <i class="fas fa-check me-1"></i>Done
+                                            </span>
+                                            {% endif %}
+                                        </div>
+                                        <small class="text-muted">
+                                            {{ task.created_at.strftime('%m/%d') }}
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+                        {% endfor %}
+                    </div>
+                    
+                    {% if tasks|length >= 10 %}
+                    <div class="text-center mt-3">
+                        <a href="{{ url_for('tasks') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-list me-1"></i>View All Tasks
+                        </a>
+                    </div>
                     {% endif %}
                 {% else %}
-                    <div class="text-center py-4">
+                    <div class="text-center py-5">
                         <i class="fas fa-tasks fa-3x text-muted mb-3"></i>
-                        <h5>No tasks yet!</h5>
-                        <p class="text-muted">Create your first task to get started.</p>
+                        <h5 class="text-muted">No tasks yet!</h5>
+                        <p class="text-muted mb-3">Create your first task to get started on your productivity journey.</p>
                         <a href="{{ url_for('add_task') }}" class="btn btn-primary">
-                            <i class="fas fa-plus"></i> Add Your First Task
+                            <i class="fas fa-plus me-1"></i>Create Your First Task
                         </a>
                     </div>
                 {% endif %}
@@ -145,14 +187,20 @@ cat > templates/dashboard.html << 'EOF'
 <script>
 $(document).ready(function() {
     $('.toggle-task').click(function() {
-        var taskId = $(this).data('task-id');
-        var button = $(this);
+        const taskId = $(this).data('task-id');
+        const button = $(this);
         
-        $.post('/toggle_task/' + taskId, function(data) {
-            if (data.success) {
-                location.reload();
-            }
-        });
+        $.post('/toggle_task/' + taskId)
+            .done(function(data) {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Failed to update task');
+                }
+            })
+            .fail(function() {
+                alert('Error updating task');
+            });
     });
 });
 </script>

@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}All Tasks - Task Manager{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2 class="mb-0">
+                <i class="fas fa-list me-2 text-primary"></i>All Tasks
+            </h2>
+            <a href="{{ url_for('add_task') }}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i>Add Task
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="row mb-4">
+    <div class="col">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <form method="GET" class="row g-3">
+                    <div class="col-md-4">
+                        <label for="status" class="form-label">Status</label>
+                        <select name="status" id="status" class="form-select">
+                            <option value="all" {{ 'selected' if current_status == 'all' }}>All Tasks</option>
+                            <option value="pending" {{ 'selected' if current_status == 'pending' }}>Pending</option>
+                            <option value="completed" {{ 'selected' if current_status == 'completed' }}>Completed</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="priority" class="form-label">Priority</label>
+                        <select name="priority" id="priority" class="form-select">
+                            <option value="all" {{ 'selected' if current_priority == 'all' }}>All Priorities</option>
+                            <option value="high" {{ 'selected' if current_priority == 'high' }}>High</option>
+                            <option value="medium" {{ 'selected' if current_priority == 'medium' }}>Medium</option>
+                            <option value="low" {{ 'selected' if current_priority == 'low' }}>Low</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-outline-primary w-100">
+                            <i class="fas fa-filter me-1"></i>Apply Filters
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tasks List -->
+<div class="row">
+    <div class="col">
+        {% if tasks %}
+            <div class="row g-3">
+                {% for task in tasks %}
+                <div class="col-lg-6">
+                    <div class="card task-card border priority-{{ task.priority }} {{ 'completed-task' if task.completed }}">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <h6 class="card-title mb-0 {{ 'text-decoration-line-through' if task.completed }}">
+                                    {{ task.title }}
+                                </h6>
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                        <i class="fas fa-ellipsis-v"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li>
+                                            <button class="dropdown-item toggle-task" data-task-id="{{ task.id }}">
+                                                <i class="fas fa-{{ 'undo' if task.completed else 'check' }} me-1"></i>
+                                                {{ 'Mark Pending' if task.completed else 'Mark Complete' }}
+                                            </button>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item" href="{{ url_for('edit_task', task_id=task.id) }}">
+                                                <i class="fas fa-edit me-1"></i>Edit
+                                            </a>
+                                        </li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li>
+                                            <form method="POST" action="{{ url_for('delete_task', task_id=task.id) }}" class="d-inline" onsubmit="return confirm('Are you sure?')">
+                                                <button type="submit" class="dropdown-item text-danger">
+                                                    <i class="fas fa-trash me-1"></i>Delete
+                                                </button>
+                                            </form>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                            
+                            {% if task.description %}
+                            <p class="card-text text-muted mb-3">{{ task.description }}</p>
+                            {% endif %}
+                            
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span class="badge bg-{{ 'danger' if task.priority == 'high' else 'warning' if task.priority == 'medium' else 'info' }}">
+                                        {{ task.priority.title() }} Priority
+                                    </span>
+                                    {% if task.completed %}
+                                    <span class="badge bg-success ms-1">
+                                        <i class="fas fa-check me-1"></i>Completed
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-secondary ms-1">
+                                        <i class="fas fa-clock me-1"></i>Pending
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                <div class="text-end">
+                                    <small class="text-muted d-block">Created: {{ task.created_at.strftime('%m/%d/%Y') }}</small>
+                                    {% if task.updated_at != task.created_at %}
+                                    <small class="text-muted d-block">Updated: {{ task.updated_at.strftime('%m/%d/%Y') }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No tasks found</h5>
+                    <p class="text-muted mb-3">
+                        {% if current_status != 'all' or current_priority != 'all' %}
+                            Try adjusting your filters or create a new task.
+                        {% else %}
+                            You haven't created any tasks yet. Start by adding your first task!
+                        {% endif %}
+                    </p>
+                    <a href="{{ url_for('add_task') }}" class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i>Add Your First Task
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    $('.toggle-task').click(function() {
+        const taskId = $(this).data('task-id');
+        
+        $.post('/toggle_task/' + taskId)
+            .done(function(data) {
+                if (data.success) {
+                    location.reload();
+                }
+            })
+            .fail(function() {
+                alert('Error updating task');
+            });
+    });
+});
+</script>
+{% endblock %}

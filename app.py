@@ -6,8 +6,8 @@ import os
 from functools import wraps
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///tasks.db')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'task-manager-secret-key-2024')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://task_manager_user:changeme123@localhost/task_manager')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -17,9 +17,12 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(120), nullable=False)
+    password_hash = db.Column(db.String(200), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     tasks = db.relationship('Task', backref='user', lazy=True, cascade='all, delete-orphan')
+
+    def __repr__(self):
+        return f'<User {self.username}>'
 
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -31,7 +34,10 @@ class Task(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
-# Helper functions
+    def __repr__(self):
+        return f'<Task {self.title}>'
+
+# Helper function for login requirement
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -51,35 +57,51 @@ def index():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        username = request.form['username']
-        email = request.form['email']
+        username = request.form['username'].strip()
+        email = request.form['email'].strip()
         password = request.form['password']
         
+        # Validation
+        if len(username) < 3:
+            flash('Username must be at least 3 characters long.', 'error')
+            return render_template('register.html')
+        
+        if len(password) < 6:
+            flash('Password must be at least 6 characters long.', 'error')
+            return render_template('register.html')
+        
+        # Check if user exists
         if User.query.filter_by(username=username).first():
-            flash('Username already exists', 'error')
+            flash('Username already exists. Please choose a different one.', 'error')
             return render_template('register.html')
         
         if User.query.filter_by(email=email).first():
-            flash('Email already exists', 'error')
+            flash('Email already registered. Please use a different email.', 'error')
             return render_template('register.html')
         
+        # Create new user
         user = User(
             username=username,
             email=email,
             password_hash=generate_password_hash(password)
         )
-        db.session.add(user)
-        db.session.commit()
         
-        flash('Registration successful! Please log in.', 'success')
-        return redirect(url_for('login'))
+        try:
+            db.session.add(user)
+            db.session.commit()
+            flash('Registration successful! Please log in.', 'success')
+            return redirect(url_for('login'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Registration failed. Please try again.', 'error')
+            return render_template('register.html')
     
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
+        username = request.form['username'].strip()
         password = request.form['password']
         
         user = User.query.filter_by(username=username).first()
@@ -87,17 +109,21 @@ def login():
         if user and check_password_hash(user.password_hash, password):
             session['user_id'] = user.id
             session['username'] = user.username
-            flash('Login successful!', 'success')
-            return redirect(url_for('dashboard'))
+            flash(f'Welcome back, {user.username}!', 'success')
+            
+            # Redirect to next page if specified
+            next_page = request.args.get('next')
+            return redirect(next_page) if next_page else redirect(url_for('dashboard'))
         else:
-            flash('Invalid username or password', 'error')
+            flash('Invalid username or password. Please try again.', 'error')
     
     return render_template('login.html')
 
 @app.route('/logout')
 def logout():
+    username = session.get('username', 'User')
     session.clear()
-    flash('You have been logged out.', 'info')
+    flash(f'Goodbye, {username}! You have been logged out.', 'info')
     return redirect(url_for('index'))
 
 @app.route('/dashboard')
@@ -106,12 +132,16 @@ def dashboard():
     user_id = session['user_id']
     tasks = Task.query.filter_by(user_id=user_id).order_by(Task.created_at.desc()).all()
     
+    # Calculate statistics
     total_tasks = len(tasks)
     completed_tasks = len([t for t in tasks if t.completed])
     pending_tasks = total_tasks - completed_tasks
     
+    # Get recent tasks (last 10)
+    recent_tasks = tasks[:10]
+    
     return render_template('dashboard.html', 
-                         tasks=tasks, 
+                         tasks=recent_tasks,
                          total_tasks=total_tasks,
                          completed_tasks=completed_tasks,
                          pending_tasks=pending_tasks)
@@ -120,16 +150,39 @@ def dashboard():
 @login_required
 def tasks():
     user_id = session['user_id']
-    tasks = Task.query.filter_by(user_id=user_id).order_by(Task.created_at.desc()).all()
-    return render_template('tasks.html', tasks=tasks)
+    
+    # Filter options
+    filter_status = request.args.get('status', 'all')
+    filter_priority = request.args.get('priority', 'all')
+    
+    query = Task.query.filter_by(user_id=user_id)
+    
+    if filter_status == 'completed':
+        query = query.filter_by(completed=True)
+    elif filter_status == 'pending':
+        query = query.filter_by(completed=False)
+    
+    if filter_priority != 'all':
+        query = query.filter_by(priority=filter_priority)
+    
+    tasks = query.order_by(Task.created_at.desc()).all()
+    
+    return render_template('tasks.html', 
+                         tasks=tasks,
+                         current_status=filter_status,
+                         current_priority=filter_priority)
 
 @app.route('/add_task', methods=['GET', 'POST'])
 @login_required
 def add_task():
     if request.method == 'POST':
-        title = request.form['title']
-        description = request.form['description']
+        title = request.form['title'].strip()
+        description = request.form['description'].strip()
         priority = request.form['priority']
+        
+        if not title:
+            flash('Task title is required.', 'error')
+            return render_template('add_task.html')
         
         task = Task(
             title=title,
@@ -137,11 +190,15 @@ def add_task():
             priority=priority,
             user_id=session['user_id']
         )
-        db.session.add(task)
-        db.session.commit()
         
-        flash('Task added successfully!', 'success')
-        return redirect(url_for('dashboard'))
+        try:
+            db.session.add(task)
+            db.session.commit()
+            flash(f'Task "{title}" added successfully!', 'success')
+            return redirect(url_for('dashboard'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Failed to add task. Please try again.', 'error')
     
     return render_template('add_task.html')
 
@@ -150,19 +207,32 @@ def add_task():
 def edit_task(task_id):
     task = Task.query.get_or_404(task_id)
     
+    # Check if task belongs to current user
     if task.user_id != session['user_id']:
-        flash('Access denied', 'error')
+        flash('Access denied. You can only edit your own tasks.', 'error')
         return redirect(url_for('dashboard'))
     
     if request.method == 'POST':
-        task.title = request.form['title']
-        task.description = request.form['description']
-        task.priority = request.form['priority']
+        title = request.form['title'].strip()
+        description = request.form['description'].strip()
+        priority = request.form['priority']
+        
+        if not title:
+            flash('Task title is required.', 'error')
+            return render_template('edit_task.html', task=task)
+        
+        task.title = title
+        task.description = description
+        task.priority = priority
         task.updated_at = datetime.utcnow()
         
-        db.session.commit()
-        flash('Task updated successfully!', 'success')
-        return redirect(url_for('dashboard'))
+        try:
+            db.session.commit()
+            flash(f'Task "{title}" updated successfully!', 'success')
+            return redirect(url_for('dashboard'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Failed to update task. Please try again.', 'error')
     
     return render_template('edit_task.html', task=task)
 
@@ -176,9 +246,18 @@ def toggle_task(task_id):
     
     task.completed = not task.completed
     task.updated_at = datetime.utcnow()
-    db.session.commit()
     
-    return jsonify({'success': True, 'completed': task.completed})
+    try:
+        db.session.commit()
+        status = 'completed' if task.completed else 'pending'
+        return jsonify({
+            'success': True, 
+            'completed': task.completed,
+            'message': f'Task marked as {status}'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'Failed to update task'}), 500
 
 @app.route('/delete_task/<int:task_id>', methods=['POST'])
 @login_required
@@ -186,13 +265,18 @@ def delete_task(task_id):
     task = Task.query.get_or_404(task_id)
     
     if task.user_id != session['user_id']:
-        flash('Access denied', 'error')
+        flash('Access denied. You can only delete your own tasks.', 'error')
         return redirect(url_for('dashboard'))
     
-    db.session.delete(task)
-    db.session.commit()
+    title = task.title
+    try:
+        db.session.delete(task)
+        db.session.commit()
+        flash(f'Task "{title}" deleted successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash('Failed to delete task. Please try again.', 'error')
     
-    flash('Task deleted successfully!', 'success')
     return redirect(url_for('dashboard'))
 
 # API Routes
@@ -212,11 +296,53 @@ def api_tasks():
         'updated_at': task.updated_at.isoformat()
     } for task in tasks])
 
+@app.route('/api/stats')
+@login_required
+def api_stats():
+    user_id = session['user_id']
+    tasks = Task.query.filter_by(user_id=user_id).all()
+    
+    total = len(tasks)
+    completed = len([t for t in tasks if t.completed])
+    pending = total - completed
+    
+    priority_counts = {
+        'high': len([t for t in tasks if t.priority == 'high']),
+        'medium': len([t for t in tasks if t.priority == 'medium']),
+        'low': len([t for t in tasks if t.priority == 'low'])
+    }
+    
+    return jsonify({
+        'total_tasks': total,
+        'completed_tasks': completed,
+        'pending_tasks': pending,
+        'priority_breakdown': priority_counts
+    })
+
 @app.route('/health')
 def health():
-    return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.utcnow().isoformat(),
+        'database': 'connected'
+    })
 
-if __name__ == '__main__':
+# Error handlers
+@app.errorhandler(404)
+def not_found_error(error):
+    return render_template('404.html'), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    db.session.rollback()
+    return render_template('500.html'), 500
+
+# Initialize database
+def init_db():
     with app.app_context():
         db.create_all()
+        print("Database tables created successfully!")
+
+if __name__ == '__main__':
+    init_db()
     app.run(debug=True, host='0.0.0.0', port=5000)
