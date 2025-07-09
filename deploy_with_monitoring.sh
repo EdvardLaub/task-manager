@@ -28,24 +28,28 @@ print_status "Starting deployment with monitoring setup..."
 print_status "Step 1: Deploying application..."
 ansible-playbook deploy.yml -v
 
-# Step 2: Set up monitoring
-print_status "Step 2: Setting up monitoring..."
+# Step 2: Set up simple backup
+print_status "Step 2: Setting up simple backup..."
+ansible-playbook simple_backup.yml -v
+
+# Step 3: Set up monitoring
+print_status "Step 3: Setting up monitoring..."
 ansible-playbook monitoring.yml -v
 
-# Step 3: Run health check
-print_status "Step 3: Running health check..."
+# Step 4: Run health check
+print_status "Step 4: Running health check..."
 ansible-playbook health_monitoring.yml
 
-# Step 4: Test backup
-print_status "Step 4: Testing backup system..."
-ansible webservers -m shell -a "/usr/local/bin/backup_task_manager.sh" --become
+# Step 5: Test backup
+print_status "Step 5: Testing backup system..."
+ansible webservers -m shell -a "/usr/local/bin/simple_backup.sh" --become
 
-# Step 5: Display summary
-print_status "Step 5: Deployment Summary"
+# Step 6: Display summary
+print_status "Step 6: Deployment Summary"
 echo "================================="
 echo "✅ Application: Deployed"
-echo "✅ Monitoring: Configured"
-echo "✅ Backup: Tested"
+echo "✅ Monitoring: Configured (fail2ban)"
+echo "✅ Backup: Tested and working"
 echo "✅ Health Check: Completed"
 echo ""
 echo "🌐 Application URL: http://64.226.111.192"
@@ -55,6 +59,6 @@ echo "📊 To check application status:"
 echo "   ansible-playbook health_monitoring.yml"
 echo ""
 echo "💾 To run manual backup:"
-echo "   ansible webservers -m shell -a '/usr/local/bin/backup_task_manager.sh' --become"
+echo "   ansible webservers -m shell -a '/usr/local/bin/simple_backup.sh' --become"
 
 print_status "Deployment completed successfully!"

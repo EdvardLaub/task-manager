@@ -1,0 +1,45 @@
+---
+- hosts: webservers
+  become: yes
+  tasks:
+    - name: Create backup directory
+      file:
+        path: /var/backups/task-manager
+        state: directory
+        mode: '0755'
+    
+    - name: Create simple backup script
+      copy:
+        content: |
+          #!/bin/bash
+          # Simple Task Manager Backup Script
+          set -e
+          
+          BACKUP_DIR="/var/backups/task-manager"
+          DATE=$(date +"%Y-%m-%d_%H-%M-%S")
+          
+          echo "Starting backup at $(date)"
+          
+          # Create backup directory
+          mkdir -p "$BACKUP_DIR"
+          
+          # Backup application files (simple approach)
+          echo "Backing up application files..."
+          tar -czf "$BACKUP_DIR/app_backup_$DATE.tar.gz" -C /var/www task-manager
+          
+          # Backup database
+          echo "Backing up database..."
+          sudo -u postgres pg_dump task_manager > "$BACKUP_DIR/db_backup_$DATE.sql"
+          
+          # Show backup files
+          echo "Backup files created:"
+          ls -la "$BACKUP_DIR"/*$DATE*
+          
+          # Clean up old backups (keep last 5)
+          cd "$BACKUP_DIR"
+          ls -t app_backup_*.tar.gz | tail -n +6 | xargs -r rm --
+          ls -t db_backup_*.sql | tail -n +6 | xargs -r rm --
+          
+          echo "Backup completed at $(date)"
+        dest: /usr/local/bin/simple_backup.sh
+        mode: '0755'

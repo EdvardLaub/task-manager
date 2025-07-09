@@ -1,0 +1,29 @@
+---
+- hosts: webservers
+  become: yes
+  tasks:
+    - name: Set up daily backup cron job
+      cron:
+        name: "Daily Task Manager backup"
+        minute: "0"
+        hour: "2"
+        job: "/usr/local/bin/simple_backup.sh"
+        user: root
+    
+    - name: Set up weekly backup cleanup
+      cron:
+        name: "Weekly backup cleanup"
+        minute: "30"
+        hour: "2"
+        weekday: "0"
+        job: "find /var/backups/task-manager -name '*.tar.gz' -mtime +7 -delete && find /var/backups/task-manager -name '*.sql' -mtime +7 -delete"
+        user: root
+    
+    - name: Display current cron jobs
+      shell: crontab -l
+      register: cron_jobs
+      changed_when: false
+    
+    - name: Show cron jobs
+      debug:
+        msg: "{{ cron_jobs.stdout_lines }}"

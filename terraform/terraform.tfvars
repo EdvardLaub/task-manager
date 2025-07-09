@@ -1,3 +1,3 @@
-do_token = "dop_v1_4de814a27c17df85eb957d0f3d6b434deea73137675318a5bcef8224ec97c9cd"
+do_token = "dop_v1_b1554b4eccd791bd45b0d2b38c916070fe13a6a525cf6ac9b89d201618f72d0a"
 domain_name = ""
 droplet_id = "506960437"
