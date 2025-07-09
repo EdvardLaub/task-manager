@@ -56,13 +56,22 @@
           # Create backup directory
           mkdir -p "$BACKUP_DIR"
           
-          # Backup application files
+          # Backup application files with correct tar syntax
           log_message "Backing up application files"
-          tar -czf "$BACKUP_DIR/app_backup_$DATE.tar.gz" -C /var/www task-manager --exclude="task-manager/venv" --exclude="task-manager/.git"
+          cd /var/www
+          tar --exclude='task-manager/venv' --exclude='task-manager/.git' -czf "$BACKUP_DIR/app_backup_$DATE.tar.gz" task-manager
           
           # Backup database
           log_message "Backing up database"
           sudo -u postgres pg_dump "$DB_NAME" > "$BACKUP_DIR/db_backup_$DATE.sql"
+          
+          # Verify backups were created
+          if [[ -f "$BACKUP_DIR/app_backup_$DATE.tar.gz" && -f "$BACKUP_DIR/db_backup_$DATE.sql" ]]; then
+              log_message "Backup files created successfully"
+          else
+              log_message "ERROR: Backup files not created"
+              exit 1
+          fi
           
           # Clean up old backups (keep last 7 days)
           find "$BACKUP_DIR" -name "app_backup_*" -mtime +7 -delete
