@@ -1,0 +1,17 @@
+---
+- hosts: webservers
+  become: yes
+  gather_facts: yes
+  roles:
+    - webserver
+  
+  post_tasks:
+    - name: Restart all services
+      systemd:
+        name: "{{ item }}"
+        state: restarted
+        daemon_reload: yes
+      loop:
+        - nginx
+        - supervisor
+      tags: restart

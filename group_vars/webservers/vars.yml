@@ -1,0 +1,37 @@
+---
+# Application settings
+app_name: task-manager
+app_user: deploy
+app_domain: 64.226.111.192  # Change this to your domain later
+app_port: 5000
+
+# Directories
+app_dir: /var/www/{{ app_name }}
+venv_dir: "{{ app_dir }}/venv"
+
+# Repository
+repo_url: "https://github.com/EdvardLaub/task-manager.git"
+repo_branch: main
+
+# Database
+db_name: task_manager
+db_user: task_manager_user
+db_password: "{{ vault_db_password | default('changeme123') }}"
+
+# System packages
+system_packages:
+  - nginx
+  - python3
+  - python3-pip
+  - python3-venv
+  - git
+  - ufw
+  - postgresql
+  - postgresql-contrib
+  - python3-psycopg2
+  - supervisor
+
+# Python packages
+python_packages:
+  - gunicorn
+  - psycopg2-binary

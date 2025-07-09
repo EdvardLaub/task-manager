@@ -1,0 +1,6 @@
+[webservers]
+production ansible_host=64.226.111.192 ansible_user=root ansible_ssh_private_key_file=~/.ssh/digitalocean_key
+
+[webservers:vars]
+ansible_python_interpreter=/usr/bin/python3
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'

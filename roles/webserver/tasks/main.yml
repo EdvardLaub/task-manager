@@ -1,0 +1,66 @@
+---
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install system packages
+  apt:
+    name: "{{ system_packages }}"
+    state: present
+
+- name: Create application user
+  user:
+    name: "{{ app_user }}"
+    shell: /bin/bash
+    home: /home/{{ app_user }}
+    create_home: yes
+
+- name: Create application directory
+  file:
+    path: "{{ app_dir }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: '0755'
+
+- name: Clone repository
+  git:
+    repo: "{{ repo_url }}"
+    dest: "{{ app_dir }}"
+    version: "{{ repo_branch }}"
+    force: yes
+  become_user: "{{ app_user }}"
+  notify: restart supervisor
+
+- name: Create virtual environment
+  command: python3 -m venv {{ venv_dir }}
+  become_user: "{{ app_user }}"
+  args:
+    creates: "{{ venv_dir }}/bin/activate"
+
+- name: Install Python dependencies
+  pip:
+    requirements: "{{ app_dir }}/requirements.txt"
+    virtualenv: "{{ venv_dir }}"
+  become_user: "{{ app_user }}"
+
+- name: Create .env file
+  template:
+    src: env.j2
+    dest: "{{ app_dir }}/.env"
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: '0600'
+
+- name: Configure PostgreSQL
+  include_tasks: postgres.yml
+
+- name: Configure Nginx
+  include_tasks: nginx.yml
+
+- name: Configure Supervisor
+  include_tasks: supervisor.yml
+
+- name: Configure UFW
+  include_tasks: firewall.yml

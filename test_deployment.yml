@@ -1,0 +1,19 @@
+---
+- hosts: webservers
+  become: yes
+  tasks:
+    - name: Test connection
+      ping:
+    
+    - name: Check system info
+      debug:
+        msg: "Connected to {{ inventory_hostname }} running {{ ansible_distribution }} {{ ansible_distribution_version }}"
+    
+    - name: Test sudo access
+      command: whoami
+      become: yes
+      register: whoami_result
+    
+    - name: Display sudo test
+      debug:
+        msg: "Running as: {{ whoami_result.stdout }}"
