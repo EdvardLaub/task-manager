@@ -1,0 +1,54 @@
+---
+- name: Check if requirements.txt exists
+  stat:
+    path: "{{ app_dir }}/requirements.txt"
+  register: requirements_file
+
+- name: Display requirements.txt content
+  shell: cat {{ app_dir }}/requirements.txt
+  register: requirements_content
+  when: requirements_file.stat.exists
+
+- name: Show requirements content
+  debug:
+    msg: "{{ requirements_content.stdout_lines }}"
+  when: requirements_file.stat.exists
+
+- name: Clean requirements.txt (remove any EOF or extra characters)
+  lineinfile:
+    path: "{{ app_dir }}/requirements.txt"
+    regexp: '^EOF.*$'
+    state: absent
+  when: requirements_file.stat.exists
+
+- name: Remove empty lines from requirements.txt
+  lineinfile:
+    path: "{{ app_dir }}/requirements.txt"
+    regexp: '^$'
+    state: absent
+  when: requirements_file.stat.exists
+
+- name: Create minimal requirements.txt if it doesn't exist
+  copy:
+    content: |
+      Flask==2.3.3
+      gunicorn==21.2.0
+      python-dotenv==1.0.0
+    dest: "{{ app_dir }}/requirements.txt"
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: '0644'
+  when: not requirements_file.stat.exists
+
+- name: Install Python dependencies
+  pip:
+    requirements: "{{ app_dir }}/requirements.txt"
+    virtualenv: "{{ venv_dir }}"
+    virtualenv_python: python3
+  become_user: "{{ app_user }}"
+  register: pip_install_result
+
+- name: Show pip install result
+  debug:
+    msg: "{{ pip_install_result }}"
+  when: pip_install_result.failed

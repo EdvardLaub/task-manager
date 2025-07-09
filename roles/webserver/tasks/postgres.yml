@@ -1,3 +1,4 @@
+---
 - name: Start and enable PostgreSQL
   systemd:
     name: postgresql
@@ -19,14 +20,35 @@
     state: present
   become_user: postgres
 
-- name: Initialize database tables
+- name: Check if Flask app has database initialization
+  stat:
+    path: "{{ app_dir }}/init_db.py"
+  register: init_db_file
+
+- name: Check if Flask app has migrations
+  stat:
+    path: "{{ app_dir }}/migrations"
+  register: migrations_dir
+
+- name: Initialize database (if init_db.py exists)
   shell: |
     source {{ venv_dir }}/bin/activate
     cd {{ app_dir }}
-    python manage.py
+    python init_db.py
   become_user: "{{ app_user }}"
   environment:
     DATABASE_URL: "postgresql://{{ db_user }}:{{ db_password }}@localhost/{{ db_name }}"
-    FLASK_ENV: "production"
+  when: init_db_file.stat.exists
   ignore_errors: yes
-EOF
+
+- name: Run Flask database migrations (if migrations exist)
+  shell: |
+    source {{ venv_dir }}/bin/activate
+    cd {{ app_dir }}
+    flask db upgrade
+  become_user: "{{ app_user }}"
+  environment:
+    DATABASE_URL: "postgresql://{{ db_user }}:{{ db_password }}@localhost/{{ db_name }}"
+    FLASK_APP: app.py
+  when: migrations_dir.stat.exists
+  ignore_errors: yes
